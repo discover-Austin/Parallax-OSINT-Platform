@@ -6,13 +6,14 @@ Production-ready, enterprise-grade OSINT platform combining AI-powered reconnais
 
 ## Features
 
-- 🔍 **Dork Builder**: Advanced search query constructor with template library
-- 🤖 **AI-Powered Generation**: Natural language to search query using Google Gemini
-- 🎙️ **Voice Commands**: Hands-free operation with Gemini Live API
-- 🕸️ **Nexus Graph**: Infrastructure relationship visualization
-- 🖼️ **Image Intelligence**: IMINT analysis and metadata extraction
-- 💾 **Secure Vault**: Encrypted local storage for sensitive queries
-- 📊 **Export & Reporting**: PDF, CSV, JSON export capabilities
+- 🔍 **Dork Builder**: Advanced search query constructor with visual operators
+- 🤖 **AI Generator**: Chat-based dork generation using Google Gemini (10/day free, unlimited Pro)
+- 📚 **Library**: 137+ pre-built templates across 15 categories (Cloud, Databases, Login Panels, etc.)
+- 💾 **Secure Vault**: Local encrypted storage for your custom dorks
+- 📊 **Export & Import**: JSON export/import for backup and sharing
+- 🎯 **Smart Search**: Filter by category, severity, and tags
+- 🔄 **Dual View Modes**: Grid and list views for browsing templates
+- 🚀 **One-Click Testing**: Direct Google search integration
 
 ## Installation
 
@@ -38,9 +39,20 @@ sudo rpm -i parallax.x86_64.rpm
 ## Quick Start
 
 1. Launch Parallax
-2. Enter your license key (or start free tier)
-3. Configure Google Gemini API key (get one at https://aistudio.google.com/app/apikey)
-4. Start building OSINT queries
+2. **Free Tier**: 10 AI generations/day, 50 dork limit, all templates
+3. **Pro Tier**: $79 one-time for unlimited everything
+4. Configure Google Gemini API key (get free key at https://aistudio.google.com/app/apikey)
+5. Start building OSINT queries with AI or templates
+
+## Pricing
+
+| Tier | Price | AI Generations | Dork Storage | Templates | Export |
+|------|-------|----------------|--------------|-----------|--------|
+| Free | $0 | 10/day | 50 dorks | All 137 | Limited |
+| **Pro** | **$79** (one-time) | **Unlimited** | **Unlimited** | **All 137** | **Full** |
+| Team | $299 (5 licenses) | Unlimited | Unlimited | All 137 | Full |
+
+Purchase at [Gumroad](https://gumroad.com/l/parallax-pro)
 
 ## Documentation
 
