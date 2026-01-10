@@ -1,6 +1,6 @@
 use crate::security::SecurityService;
 use crate::licensing::LicenseService;
-use crate::vault::VaultService;
+use crate::vault::{VaultService, DorkQuery};
 use serde::{Deserialize, Serialize};
 use tauri::State;
 use std::sync::Arc;
@@ -11,16 +11,6 @@ pub struct AppConfig {
     pub api_key_configured: bool,
     pub license_status: String,
     pub tier: String,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct DorkQuery {
-    pub id: String,
-    pub name: String,
-    pub query: String,
-    pub category: String,
-    pub tags: Vec<String>,
-    pub created_at: String,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
