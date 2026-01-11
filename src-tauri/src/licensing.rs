@@ -1,9 +1,7 @@
 use anyhow::{Context, Result};
-use ed25519_dalek::{PublicKey, Signature, Verifier, PUBLIC_KEY_LENGTH};
+use ed25519_dalek::{VerifyingKey, Signature, Verifier};
 use serde::{Deserialize, Serialize};
 use sha2::{Sha256, Digest};
-use std::time::{SystemTime, UNIX_EPOCH};
-use uuid::Uuid;
 
 // Embedded public key for license validation (will be set during build)
 const LICENSE_PUBLIC_KEY: &str = "WILL_BE_SET_DURING_BUILD_PROCESS";

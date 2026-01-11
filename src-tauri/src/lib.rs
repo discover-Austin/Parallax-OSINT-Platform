@@ -5,6 +5,7 @@ mod licensing;
 mod vault;
 
 use std::sync::Arc;
+use tauri::Manager;
 use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 /// Initialize logging and monitoring

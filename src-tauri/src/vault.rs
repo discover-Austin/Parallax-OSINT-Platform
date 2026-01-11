@@ -386,7 +386,7 @@ impl VaultService {
                      last_reset_date = ?1,
                      updated_at = datetime('now')
                  WHERE id = 1",
-                [today],
+                [&today],
             ).context("Failed to reset daily usage")?;
 
             tracing::info!("Daily usage counter reset for new day: {}", today);
