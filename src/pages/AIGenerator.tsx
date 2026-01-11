@@ -9,15 +9,22 @@ import {
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
 import { generateDork } from '../services/ai';
-import { saveDork } from '../services/tauri';
+import {
+  saveDork,
+  getUsageStats,
+  incrementAIUsage,
+  canGenerateAI,
+  getRemainingAIGenerations,
+  saveConversation as saveConversationBackend,
+  listConversations,
+  type Conversation,
+  type Message as BackendMessage,
+} from '../services/tauri';
+import { useLicense } from '../hooks/useLicense';
 import { v4 as uuidv4 } from 'uuid';
 
-interface Message {
-  id: string;
-  role: 'user' | 'assistant';
-  content: string;
-  timestamp: string;
-  dork?: string; // Extracted dork query for assistant messages
+// Use backend Message type but extend with error flag for UI
+interface Message extends BackendMessage {
   error?: boolean;
 }
 
@@ -33,15 +40,20 @@ const EXAMPLE_PROMPTS = [
 // Free tier constants
 const FREE_TIER_DAILY_LIMIT = 10;
 
+// Active conversation ID (for now, we'll use a single active conversation)
+const ACTIVE_CONVERSATION_ID = 'active-ai-conversation';
+
 export default function AIGenerator() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [usageCount, setUsageCount] = useState(0);
-  const [tier, setTier] = useState<string>('free');
+  const [remainingGenerations, setRemainingGenerations] = useState(0);
   const [showUpgrade, setShowUpgrade] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  // Use license hook for tier information
+  const { tier, isPro, isLoading: licenseLoading } = useLicense();
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -52,24 +64,29 @@ export default function AIGenerator() {
   useEffect(() => {
     loadConversation();
     loadUsageStats();
-    loadTierInfo();
   }, []);
 
   const loadConversation = async () => {
     try {
-      // TODO: Load from vault/localStorage
-      const saved = localStorage.getItem('ai_conversation');
-      if (saved) {
-        setMessages(JSON.parse(saved));
+      const conversations = await listConversations(1);
+      if (conversations.length > 0) {
+        setMessages(conversations[0].messages as Message[]);
       }
     } catch (error) {
       console.error('Failed to load conversation:', error);
     }
   };
 
-  const saveConversation = (msgs: Message[]) => {
+  const saveConversation = async (msgs: Message[]) => {
     try {
-      localStorage.setItem('ai_conversation', JSON.stringify(msgs));
+      const conversation: Conversation = {
+        id: ACTIVE_CONVERSATION_ID,
+        title: msgs.length > 0 ? msgs[0].content.substring(0, 50) : 'New Conversation',
+        messages: msgs,
+        created_at: msgs[0]?.timestamp || new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      };
+      await saveConversationBackend(conversation);
     } catch (error) {
       console.error('Failed to save conversation:', error);
     }
@@ -77,52 +94,29 @@ export default function AIGenerator() {
 
   const loadUsageStats = async () => {
     try {
-      // TODO: Load from Rust backend
-      const saved = localStorage.getItem('ai_usage_count');
-      const lastReset = localStorage.getItem('ai_usage_reset');
-      const today = new Date().toDateString();
-
-      if (lastReset !== today) {
-        // Reset count for new day
-        setUsageCount(0);
-        localStorage.setItem('ai_usage_count', '0');
-        localStorage.setItem('ai_usage_reset', today);
-      } else {
-        setUsageCount(parseInt(saved || '0'));
-      }
+      const remaining = await getRemainingAIGenerations();
+      setRemainingGenerations(remaining);
     } catch (error) {
       console.error('Failed to load usage stats:', error);
+      setRemainingGenerations(0);
     }
   };
 
-  const incrementUsage = () => {
-    const newCount = usageCount + 1;
-    setUsageCount(newCount);
-    localStorage.setItem('ai_usage_count', newCount.toString());
-  };
-
-  const loadTierInfo = async () => {
+  const checkCanUseAI = async (): Promise<boolean> => {
     try {
-      // TODO: Load from Rust licensing system
-      const savedTier = localStorage.getItem('license_tier') || 'free';
-      setTier(savedTier);
+      return await canGenerateAI();
     } catch (error) {
-      console.error('Failed to load tier info:', error);
+      console.error('Failed to check AI usage:', error);
+      return false;
     }
-  };
-
-  const canUseAI = (): boolean => {
-    if (tier === 'professional' || tier === 'team' || tier === 'enterprise') {
-      return true;
-    }
-    return usageCount < FREE_TIER_DAILY_LIMIT;
   };
 
   const handleSend = async () => {
     if (!input.trim() || loading) return;
 
-    // Check usage limits
-    if (!canUseAI()) {
+    // Check usage limits with backend
+    const canUse = await checkCanUseAI();
+    if (!canUse) {
       setShowUpgrade(true);
       return;
     }
@@ -143,7 +137,9 @@ export default function AIGenerator() {
       // Generate dork using AI
       const response = await generateDork(input.trim());
 
-      incrementUsage();
+      // Increment usage counter in backend
+      const newCount = await incrementAIUsage();
+      setRemainingGenerations(isPro ? Infinity : Math.max(0, FREE_TIER_DAILY_LIMIT - newCount));
 
       const assistantMessage: Message = {
         id: uuidv4(),
@@ -155,7 +151,7 @@ export default function AIGenerator() {
 
       const updatedMessages = [...newMessages, assistantMessage];
       setMessages(updatedMessages);
-      saveConversation(updatedMessages);
+      await saveConversation(updatedMessages);
     } catch (error: any) {
       console.error('AI generation error:', error);
 
@@ -169,7 +165,7 @@ export default function AIGenerator() {
 
       const updatedMessages = [...newMessages, errorMessage];
       setMessages(updatedMessages);
-      saveConversation(updatedMessages);
+      await saveConversation(updatedMessages);
     } finally {
       setLoading(false);
       inputRef.current?.focus();
@@ -188,10 +184,10 @@ export default function AIGenerator() {
     inputRef.current?.focus();
   };
 
-  const handleClear = () => {
+  const handleClear = async () => {
     if (confirm('Are you sure you want to clear the conversation?')) {
       setMessages([]);
-      saveConversation([]);
+      await saveConversation([]);
     }
   };
 
@@ -210,8 +206,7 @@ export default function AIGenerator() {
         id: uuidv4(),
         name: description.substring(0, 50) + (description.length > 50 ? '...' : ''),
         query: dork,
-        category: 'Custom',
-        description: description,
+        category: 'AI Generated',
         tags: ['AI Generated'],
         created_at: new Date().toISOString(),
       });
@@ -227,8 +222,8 @@ export default function AIGenerator() {
   };
 
   const getRemainingGenerations = () => {
-    if (tier !== 'free') return 'Unlimited';
-    return FREE_TIER_DAILY_LIMIT - usageCount;
+    if (isPro) return 'Unlimited';
+    return remainingGenerations;
   };
 
   return (

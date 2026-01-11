@@ -15,6 +15,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { BookOpenIcon } from '@heroicons/react/24/solid';
 import { DORK_TEMPLATES, TEMPLATE_CATEGORIES, type DorkTemplate } from '../data/dorkTemplates';
+import { getAllDorks, saveDork, deleteDork, type DorkQuery } from '../services/tauri';
 import { useNavigate } from 'react-router-dom';
 
 type ViewMode = 'grid' | 'list';
@@ -43,9 +44,18 @@ export default function Library() {
 
   const loadDorks = async () => {
     try {
-      // Load custom saved dorks from localStorage/vault
-      const savedCustom = localStorage.getItem('custom_dorks');
-      const customDorks: SavedDork[] = savedCustom ? JSON.parse(savedCustom) : [];
+      // Load custom saved dorks from Rust backend vault
+      const savedFromVault = await getAllDorks();
+      const customDorks: SavedDork[] = savedFromVault.map(d => ({
+        id: d.id,
+        name: d.name,
+        query: d.query,
+        description: d.name, // Using name as description for now
+        category: d.category,
+        tags: d.tags,
+        saved_at: d.created_at,
+        custom: true,
+      }));
 
       // Combine templates with custom dorks
       const templateDorks: SavedDork[] = DORK_TEMPLATES.map(t => ({
@@ -57,15 +67,13 @@ export default function Library() {
       setDorks([...customDorks, ...templateDorks]);
     } catch (error) {
       console.error('Failed to load dorks:', error);
-    }
-  };
-
-  const saveCustomDorks = (customDorks: SavedDork[]) => {
-    try {
-      const custom = customDorks.filter(d => d.custom);
-      localStorage.setItem('custom_dorks', JSON.stringify(custom));
-    } catch (error) {
-      console.error('Failed to save dorks:', error);
+      // Fallback to just templates if vault fails
+      const templateDorks: SavedDork[] = DORK_TEMPLATES.map(t => ({
+        ...t,
+        saved_at: new Date().toISOString(),
+        custom: false,
+      }));
+      setDorks(templateDorks);
     }
   };
 
@@ -140,7 +148,7 @@ export default function Library() {
     setShowEditModal(true);
   };
 
-  const handleDelete = (dorkId: string) => {
+  const handleDelete = async (dorkId: string) => {
     const dork = dorks.find(d => d.id === dorkId);
     if (!dork?.custom) {
       alert('Template dorks cannot be deleted.');
@@ -148,13 +156,18 @@ export default function Library() {
     }
 
     if (confirm('Are you sure you want to delete this dork?')) {
-      const updated = dorks.filter(d => d.id !== dorkId);
-      setDorks(updated);
-      saveCustomDorks(updated);
+      try {
+        await deleteDork(dorkId);
+        const updated = dorks.filter(d => d.id !== dorkId);
+        setDorks(updated);
+      } catch (error) {
+        console.error('Failed to delete dork:', error);
+        alert('Failed to delete dork. Please try again.');
+      }
     }
   };
 
-  const handleBulkDelete = () => {
+  const handleBulkDelete = async () => {
     const toDelete = Array.from(selectedDorks);
     const customToDelete = toDelete.filter(id => dorks.find(d => d.id === id)?.custom);
 
@@ -164,10 +177,16 @@ export default function Library() {
     }
 
     if (confirm(`Delete ${customToDelete.length} custom dork(s)?`)) {
-      const updated = dorks.filter(d => !selectedDorks.has(d.id));
-      setDorks(updated);
-      saveCustomDorks(updated);
-      setSelectedDorks(new Set());
+      try {
+        // Delete each dork from backend
+        await Promise.all(customToDelete.map(id => deleteDork(id)));
+        const updated = dorks.filter(d => !selectedDorks.has(d.id));
+        setDorks(updated);
+        setSelectedDorks(new Set());
+      } catch (error) {
+        console.error('Failed to delete dorks:', error);
+        alert('Failed to delete some dorks. Please try again.');
+      }
     }
   };
 
@@ -202,11 +221,28 @@ export default function Library() {
       try {
         const text = await file.text();
         const imported = JSON.parse(text) as SavedDork[];
-        const customImported = imported.map(d => ({ ...d, custom: true }));
-        const updated = [...dorks, ...customImported];
-        setDorks(updated);
-        saveCustomDorks(updated);
-        alert(`Imported ${customImported.length} dork(s)`);
+
+        // Save each imported dork to backend
+        let successCount = 0;
+        for (const dork of imported) {
+          try {
+            await saveDork({
+              id: dork.id,
+              name: dork.name,
+              query: dork.query,
+              category: dork.category,
+              tags: dork.tags,
+              created_at: new Date().toISOString(),
+            });
+            successCount++;
+          } catch (error) {
+            console.error(`Failed to import dork ${dork.name}:`, error);
+          }
+        }
+
+        // Reload dorks from backend
+        await loadDorks();
+        alert(`Imported ${successCount} of ${imported.length} dork(s)`);
       } catch (error) {
         alert('Failed to import file. Make sure it\'s a valid JSON file.');
       }
@@ -214,14 +250,28 @@ export default function Library() {
     input.click();
   };
 
-  const handleSaveEdit = () => {
+  const handleSaveEdit = async () => {
     if (!editingDork) return;
 
-    const updated = dorks.map(d => d.id === editingDork.id ? editingDork : d);
-    setDorks(updated);
-    saveCustomDorks(updated);
-    setShowEditModal(false);
-    setEditingDork(null);
+    try {
+      await saveDork({
+        id: editingDork.id,
+        name: editingDork.name,
+        query: editingDork.query,
+        category: editingDork.category,
+        tags: editingDork.tags,
+        created_at: editingDork.saved_at,
+      });
+
+      // Update local state
+      const updated = dorks.map(d => d.id === editingDork.id ? editingDork : d);
+      setDorks(updated);
+      setShowEditModal(false);
+      setEditingDork(null);
+    } catch (error) {
+      console.error('Failed to save dork:', error);
+      alert('Failed to save changes. Please try again.');
+    }
   };
 
   return (
