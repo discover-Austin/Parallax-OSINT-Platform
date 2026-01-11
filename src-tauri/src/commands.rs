@@ -141,12 +141,14 @@ pub async fn export_data(
                 .map_err(|e| format!("Failed to write JSON file: {}", e))?;
         },
         "csv" => {
-            // CSV export implementation would go here
-            return Err("CSV export not yet implemented".to_string());
+            // CSV export implementation
+            export_to_csv(&file_path, &options.data, &options.metadata)
+                .map_err(|e| format!("CSV export failed: {}", e))?;
         },
         "pdf" => {
-            // PDF export implementation would go here
-            return Err("PDF export not yet implemented".to_string());
+            // PDF export implementation
+            export_to_pdf(&file_path, &options.data, &options.metadata)
+                .map_err(|e| format!("PDF export failed: {}", e))?;
         },
         _ => return Err(format!("Unsupported export format: {}", options.format)),
     }
@@ -351,4 +353,212 @@ pub async fn has_feature(
     }
 
     Ok(license_info.features.contains(&feature))
+}
+
+// ========================================================================
+// EXPORT HELPER FUNCTIONS
+// ========================================================================
+
+/// Export data to CSV format
+fn export_to_csv(
+    file_path: &std::path::Path,
+    data: &serde_json::Value,
+    metadata: &serde_json::Value,
+) -> anyhow::Result<()> {
+    use csv::Writer;
+
+    let mut writer = Writer::from_path(file_path)?;
+
+    // Handle data as array of objects
+    let items = data
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("Data must be an array for CSV export"))?;
+
+    if items.is_empty() {
+        return Err(anyhow::anyhow!("No data to export"));
+    }
+
+    // Extract headers from first object
+    let first_item = &items[0];
+    let headers: Vec<String> = if let Some(obj) = first_item.as_object() {
+        obj.keys().map(|k| k.clone()).collect()
+    } else {
+        return Err(anyhow::anyhow!("Data items must be objects"));
+    };
+
+    // Write header row
+    writer.write_record(&headers)?;
+
+    // Write data rows
+    for item in items {
+        if let Some(obj) = item.as_object() {
+            let row: Vec<String> = headers
+                .iter()
+                .map(|header| {
+                    obj.get(header)
+                        .map(|v| format_json_value_for_csv(v))
+                        .unwrap_or_default()
+                })
+                .collect();
+            writer.write_record(&row)?;
+        }
+    }
+
+    writer.flush()?;
+    Ok(())
+}
+
+/// Export data to PDF format
+fn export_to_pdf(
+    file_path: &std::path::Path,
+    data: &serde_json::Value,
+    metadata: &serde_json::Value,
+) -> anyhow::Result<()> {
+    use printpdf::*;
+
+    // Create PDF document
+    let (doc, page1, layer1) = PdfDocument::new(
+        metadata
+            .get("title")
+            .and_then(|v| v.as_str())
+            .unwrap_or("Parallax Export"),
+        Mm(210.0),
+        Mm(297.0),
+        "Layer 1",
+    );
+
+    let current_layer = doc.get_page(page1).get_layer(layer1);
+
+    // Use built-in fonts (Helvetica)
+    let font = doc.add_builtin_font(BuiltinFont::Helvetica)?;
+    let font_bold = doc.add_builtin_font(BuiltinFont::HelveticaBold)?;
+
+    // Starting position
+    let mut y_pos = 270.0; // Start from top
+    let x_margin = 20.0;
+    let page_width = 210.0;
+
+    // Write title
+    let title = metadata
+        .get("title")
+        .and_then(|v| v.as_str())
+        .unwrap_or("Parallax Data Export");
+
+    current_layer.use_text(title, 16.0, Mm(x_margin), Mm(y_pos), &font_bold);
+    y_pos -= 10.0;
+
+    // Write metadata
+    if let Some(description) = metadata.get("description").and_then(|v| v.as_str()) {
+        current_layer.use_text(description, 10.0, Mm(x_margin), Mm(y_pos), &font);
+        y_pos -= 7.0;
+    }
+
+    let timestamp = chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string();
+    current_layer.use_text(
+        &format!("Generated: {}", timestamp),
+        9.0,
+        Mm(x_margin),
+        Mm(y_pos),
+        &font,
+    );
+    y_pos -= 15.0;
+
+    // Handle data as array
+    let items = data
+        .as_array()
+        .ok_or_else(|| anyhow::anyhow!("Data must be an array for PDF export"))?;
+
+    for (index, item) in items.iter().enumerate() {
+        // Check if we need a new page
+        if y_pos < 30.0 {
+            let (page, layer) = doc.add_page(Mm(210.0), Mm(297.0), "Layer 1");
+            let current_layer = doc.get_page(page).get_layer(layer);
+            y_pos = 270.0;
+        }
+
+        // Write item number
+        current_layer.use_text(
+            &format!("Item {} of {}", index + 1, items.len()),
+            11.0,
+            Mm(x_margin),
+            Mm(y_pos),
+            &font_bold,
+        );
+        y_pos -= 7.0;
+
+        // Write item fields
+        if let Some(obj) = item.as_object() {
+            for (key, value) in obj {
+                if y_pos < 30.0 {
+                    let (page, layer) = doc.add_page(Mm(210.0), Mm(297.0), "Layer 1");
+                    let current_layer = doc.get_page(page).get_layer(layer);
+                    y_pos = 270.0;
+                }
+
+                let value_str = format_json_value_for_pdf(value);
+                let truncated = truncate_text(&value_str, 80);
+
+                let line = format!("{}: {}", key, truncated);
+                current_layer.use_text(&line, 9.0, Mm(x_margin + 5.0), Mm(y_pos), &font);
+                y_pos -= 5.0;
+            }
+        }
+
+        y_pos -= 5.0; // Extra spacing between items
+    }
+
+    // Save PDF
+    doc.save(&mut std::io::BufWriter::new(std::fs::File::create(
+        file_path,
+    )?))?;
+
+    Ok(())
+}
+
+/// Format JSON value for CSV
+fn format_json_value_for_csv(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        serde_json::Value::Null => String::new(),
+        serde_json::Value::Array(arr) => {
+            arr.iter()
+                .map(|v| format_json_value_for_csv(v))
+                .collect::<Vec<_>>()
+                .join("; ")
+        }
+        serde_json::Value::Object(_) => serde_json::to_string(value).unwrap_or_default(),
+    }
+}
+
+/// Format JSON value for PDF
+fn format_json_value_for_pdf(value: &serde_json::Value) -> String {
+    match value {
+        serde_json::Value::String(s) => s.clone(),
+        serde_json::Value::Number(n) => n.to_string(),
+        serde_json::Value::Bool(b) => b.to_string(),
+        serde_json::Value::Null => "null".to_string(),
+        serde_json::Value::Array(arr) => {
+            format!("[{}]", arr.iter()
+                .map(|v| format_json_value_for_pdf(v))
+                .collect::<Vec<_>>()
+                .join(", "))
+        }
+        serde_json::Value::Object(obj) => {
+            format!("{{{}}}", obj.iter()
+                .map(|(k, v)| format!("{}: {}", k, format_json_value_for_pdf(v)))
+                .collect::<Vec<_>>()
+                .join(", "))
+        }
+    }
+}
+
+/// Truncate text to maximum length
+fn truncate_text(text: &str, max_len: usize) -> String {
+    if text.len() > max_len {
+        format!("{}...", &text[..max_len - 3])
+    } else {
+        text.to_string()
+    }
 }

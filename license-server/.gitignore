@@ -1,0 +1,13 @@
+node_modules/
+.env
+.env.local
+.env.production
+*.log
+coverage/
+.DS_Store
+dist/
+build/
+keys.txt
+*.pem
+*.key
+*.crt
