@@ -8,7 +8,7 @@ import {
   SparklesIcon,
   ExclamationTriangleIcon
 } from '@heroicons/react/24/outline';
-import { generateDork } from '../services/ai';
+import { generateDork } from '../services/gemini';
 import {
   saveDork,
   getUsageStats,
