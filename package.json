@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Multi-dimensional threat intelligence platform",
+  "description": "Production-ready OSINT platform - FEATURE LOCKED v1.0.0",
   "author": "Parallax Team",
   "license": "SEE LICENSE IN docs/legal/EULA.md",
   "scripts": {

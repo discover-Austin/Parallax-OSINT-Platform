@@ -1,5 +1,13 @@
 # Parallax Intelligence Platform
 
+[![Production Ready](https://img.shields.io/badge/status-production--ready-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-1.0.0-blue)]()
+[![License](https://img.shields.io/badge/license-Proprietary-red)]()
+[![Security](https://img.shields.io/badge/security-hardened-green)]()
+[![Feature Freeze](https://img.shields.io/badge/features-locked-orange)]()
+
+> **🔒 PRODUCTION RELEASE v1.0.0 - Feature set locked as of January 11, 2026**
+
 **Tagline**: "Intelligence from every angle"
 
 Production-ready, enterprise-grade OSINT platform combining AI-powered reconnaissance, infrastructure mapping, and image analysis for security researchers and threat intelligence teams.
