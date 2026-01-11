@@ -124,8 +124,6 @@ pub async fn delete_dork(
 pub async fn export_data(
     options: ExportOptions,
 ) -> Result<String, String> {
-    use std::path::PathBuf;
-
     // Get documents directory
     let docs_dir = dirs::document_dir()
         .ok_or_else(|| "Could not determine documents directory".to_string())?;
@@ -176,7 +174,7 @@ pub async fn get_system_info() -> Result<serde_json::Value, String> {
 // Check for updates
 #[tauri::command]
 pub async fn check_for_updates(
-    app: tauri::AppHandle,
+    _app: tauri::AppHandle,
 ) -> Result<serde_json::Value, String> {
     // This will be implemented with tauri-plugin-updater
     Ok(serde_json::json!({
