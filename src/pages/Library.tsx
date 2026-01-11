@@ -9,13 +9,10 @@ import {
   ArrowDownTrayIcon,
   ArrowUpTrayIcon,
   XMarkIcon,
-  CheckIcon,
-  FunnelIcon,
-  ArrowsUpDownIcon,
 } from '@heroicons/react/24/outline';
 import { BookOpenIcon } from '@heroicons/react/24/solid';
 import { DORK_TEMPLATES, TEMPLATE_CATEGORIES, type DorkTemplate } from '../data/dorkTemplates';
-import { getAllDorks, saveDork, deleteDork, type DorkQuery } from '../services/tauri';
+import { getAllDorks, saveDork, deleteDork } from '../services/tauri';
 import { useNavigate } from 'react-router-dom';
 
 type ViewMode = 'grid' | 'list';
@@ -51,8 +48,9 @@ export default function Library() {
         name: d.name,
         query: d.query,
         description: d.name, // Using name as description for now
-        category: d.category,
+        category: d.category as DorkTemplate['category'],
         tags: d.tags,
+        severity: 'Low' as DorkTemplate['severity'],
         saved_at: d.created_at,
         custom: true,
       }));

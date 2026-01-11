@@ -180,13 +180,24 @@ Provide a structured analysis in JSON format:
     ]);
 
     const text = result.response.text();
-    const parsed = parseGeminiResponse(text);
 
-    return {
-      findings: parsed.findings || text,
-      locations: parsed.locations,
-      objects: parsed.objects,
-    };
+    // Try to parse JSON from response
+    try {
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : { findings: text };
+
+      return {
+        findings: parsed.findings || text,
+        locations: parsed.locations || [],
+        objects: parsed.objects || [],
+      };
+    } catch {
+      return {
+        findings: text,
+        locations: [],
+        objects: [],
+      };
+    }
   } catch (error) {
     console.error('Image analysis failed:', error);
     throw new Error(

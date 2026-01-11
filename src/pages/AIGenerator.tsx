@@ -11,7 +11,7 @@ import {
 import { generateDork } from '../services/gemini';
 import {
   saveDork,
-  getUsageStats,
+  /* getUsageStats, */
   incrementAIUsage,
   canGenerateAI,
   getRemainingAIGenerations,
@@ -53,7 +53,7 @@ export default function AIGenerator() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
 
   // Use license hook for tier information
-  const { tier, isPro, isLoading: licenseLoading } = useLicense();
+  const { tier, isPro } = useLicense();
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
@@ -135,7 +135,7 @@ export default function AIGenerator() {
 
     try {
       // Generate dork using AI
-      const response = await generateDork(input.trim());
+      const response = await generateDork({ description: input.trim() });
 
       // Increment usage counter in backend
       const newCount = await incrementAIUsage();

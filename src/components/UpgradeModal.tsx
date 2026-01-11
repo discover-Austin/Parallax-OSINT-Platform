@@ -26,7 +26,7 @@ export default function UpgradeModal({
   isOpen,
   onClose,
   reason = 'feature',
-  currentTier = 'free'
+  currentTier: _currentTier = 'free'
 }: UpgradeModalProps) {
   if (!isOpen) return null;
 

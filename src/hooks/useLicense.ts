@@ -3,7 +3,6 @@ import {
   getLicenseTier,
   hasFeature,
   validateLicense,
-  type LicenseActivationResult,
 } from '../services/tauri';
 
 export interface LicenseState {
