@@ -131,6 +131,20 @@ pub fn run() {
             commands::get_system_info,
             commands::check_for_updates,
             commands::open_external_url,
+            // Usage tracking commands
+            commands::get_usage_stats,
+            commands::increment_ai_usage,
+            commands::can_generate_ai,
+            commands::can_save_dork,
+            commands::get_remaining_ai_generations,
+            // Conversation persistence commands
+            commands::save_conversation,
+            commands::get_conversation,
+            commands::list_conversations,
+            commands::delete_conversation,
+            // Enhanced license commands
+            commands::get_license_tier,
+            commands::has_feature,
         ])
         // Setup handler
         .setup(|app| {

@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::Mutex;
+use chrono::Utc;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DorkQuery {
@@ -14,6 +15,34 @@ pub struct DorkQuery {
     pub tags: Vec<String>,
     pub created_at: String,
     pub updated_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct UsageStats {
+    pub ai_generations_today: i32,
+    pub last_reset_date: String,
+    pub total_dorks: i32,
+    pub total_conversations: i32,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Conversation {
+    pub id: String,
+    pub title: String,
+    pub messages: Vec<Message>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Message {
+    pub id: String,
+    pub role: String,
+    pub content: String,
+    pub timestamp: String,
+    pub dork: Option<String>,
 }
 
 pub struct VaultService {
@@ -50,6 +79,44 @@ impl VaultService {
             "CREATE INDEX IF NOT EXISTS idx_dorks_created_at ON dorks(created_at DESC)",
             [],
         ).context("Failed to create created_at index")?;
+
+        // Create usage_stats table
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS usage_stats (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                ai_generations_today INTEGER DEFAULT 0,
+                last_reset_date TEXT NOT NULL,
+                total_dorks INTEGER DEFAULT 0,
+                total_conversations INTEGER DEFAULT 0,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )",
+            [],
+        ).context("Failed to create usage_stats table")?;
+
+        // Insert default row if doesn't exist
+        conn.execute(
+            "INSERT OR IGNORE INTO usage_stats (id, last_reset_date, created_at, updated_at)
+             VALUES (1, date('now'), datetime('now'), datetime('now'))",
+            [],
+        ).context("Failed to initialize usage_stats")?;
+
+        // Create conversations table
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS conversations (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                messages TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            )",
+            [],
+        ).context("Failed to create conversations table")?;
+
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_conversations_updated ON conversations(updated_at DESC)",
+            [],
+        ).context("Failed to create conversations index")?;
 
         tracing::info!("Vault database initialized at {:?}", vault_path);
 
@@ -272,6 +339,243 @@ impl VaultService {
             "total_dorks": total,
             "total_categories": categories,
         }))
+    }
+
+    // ========================================================================
+    // USAGE TRACKING METHODS
+    // ========================================================================
+
+    pub async fn get_usage_stats(&self) -> Result<UsageStats> {
+        self.check_and_reset_daily_usage().await?;
+
+        let conn = self.conn.lock().await;
+
+        let stats = conn.query_row(
+            "SELECT ai_generations_today, last_reset_date, total_dorks,
+                    total_conversations, created_at, updated_at
+             FROM usage_stats WHERE id = 1",
+            [],
+            |row| Ok(UsageStats {
+                ai_generations_today: row.get(0)?,
+                last_reset_date: row.get(1)?,
+                total_dorks: row.get(2)?,
+                total_conversations: row.get(3)?,
+                created_at: row.get(4)?,
+                updated_at: row.get(5)?,
+            }),
+        ).context("Failed to get usage stats")?;
+
+        Ok(stats)
+    }
+
+    pub async fn check_and_reset_daily_usage(&self) -> Result<()> {
+        let conn = self.conn.lock().await;
+
+        let today = Utc::now().format("%Y-%m-%d").to_string();
+
+        let last_reset: String = conn.query_row(
+            "SELECT last_reset_date FROM usage_stats WHERE id = 1",
+            [],
+            |row| row.get(0),
+        ).context("Failed to get last reset date")?;
+
+        if last_reset != today {
+            conn.execute(
+                "UPDATE usage_stats
+                 SET ai_generations_today = 0,
+                     last_reset_date = ?1,
+                     updated_at = datetime('now')
+                 WHERE id = 1",
+                [today],
+            ).context("Failed to reset daily usage")?;
+
+            tracing::info!("Daily usage counter reset for new day: {}", today);
+        }
+
+        Ok(())
+    }
+
+    pub async fn increment_ai_usage(&self) -> Result<i32> {
+        self.check_and_reset_daily_usage().await?;
+
+        let conn = self.conn.lock().await;
+
+        conn.execute(
+            "UPDATE usage_stats
+             SET ai_generations_today = ai_generations_today + 1,
+                 updated_at = datetime('now')
+             WHERE id = 1",
+            [],
+        ).context("Failed to increment AI usage")?;
+
+        let count: i32 = conn.query_row(
+            "SELECT ai_generations_today FROM usage_stats WHERE id = 1",
+            [],
+            |row| row.get(0),
+        ).context("Failed to get AI generation count")?;
+
+        tracing::debug!("AI generation count: {}", count);
+        Ok(count)
+    }
+
+    pub async fn get_total_dorks_count(&self) -> Result<i32> {
+        let conn = self.conn.lock().await;
+
+        let count: i32 = conn.query_row(
+            "SELECT COUNT(*) FROM dorks",
+            [],
+            |row| row.get(0),
+        ).context("Failed to count dorks")?;
+
+        conn.execute(
+            "UPDATE usage_stats
+             SET total_dorks = ?1,
+                 updated_at = datetime('now')
+             WHERE id = 1",
+            [count],
+        ).context("Failed to update dork count")?;
+
+        Ok(count)
+    }
+
+    pub async fn can_generate_ai(&self, license_tier: &str) -> Result<bool> {
+        if matches!(license_tier, "professional" | "team" | "enterprise") {
+            return Ok(true);
+        }
+
+        let stats = self.get_usage_stats().await?;
+        Ok(stats.ai_generations_today < 10)
+    }
+
+    pub async fn can_save_dork(&self, license_tier: &str) -> Result<bool> {
+        if matches!(license_tier, "professional" | "team" | "enterprise") {
+            return Ok(true);
+        }
+
+        let total = self.get_total_dorks_count().await?;
+        Ok(total < 50)
+    }
+
+    // ========================================================================
+    // CONVERSATION PERSISTENCE METHODS
+    // ========================================================================
+
+    pub async fn save_conversation(&self, conversation: &Conversation) -> Result<()> {
+        let conn = self.conn.lock().await;
+
+        let messages_json = serde_json::to_string(&conversation.messages)
+            .context("Failed to serialize messages")?;
+
+        conn.execute(
+            "INSERT OR REPLACE INTO conversations
+             (id, title, messages, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![
+                &conversation.id,
+                &conversation.title,
+                &messages_json,
+                &conversation.created_at,
+                &conversation.updated_at,
+            ],
+        ).context("Failed to save conversation")?;
+
+        // Update total_conversations count
+        conn.execute(
+            "UPDATE usage_stats
+             SET total_conversations = (SELECT COUNT(*) FROM conversations),
+                 updated_at = datetime('now')
+             WHERE id = 1",
+            [],
+        ).context("Failed to update conversation count")?;
+
+        tracing::debug!("Conversation saved: {} ({})", conversation.title, conversation.id);
+        Ok(())
+    }
+
+    pub async fn get_conversation(&self, id: &str) -> Result<Conversation> {
+        let conn = self.conn.lock().await;
+
+        let conversation = conn.query_row(
+            "SELECT id, title, messages, created_at, updated_at
+             FROM conversations WHERE id = ?1",
+            [id],
+            |row| {
+                let messages_json: String = row.get(2)?;
+                let messages: Vec<Message> = serde_json::from_str(&messages_json)
+                    .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+
+                Ok(Conversation {
+                    id: row.get(0)?,
+                    title: row.get(1)?,
+                    messages,
+                    created_at: row.get(3)?,
+                    updated_at: row.get(4)?,
+                })
+            },
+        ).context("Failed to get conversation")?;
+
+        Ok(conversation)
+    }
+
+    pub async fn list_conversations(&self, limit: Option<i32>) -> Result<Vec<Conversation>> {
+        let conn = self.conn.lock().await;
+
+        let mut stmt = if let Some(lim) = limit {
+            conn.prepare(
+                &format!("SELECT id, title, messages, created_at, updated_at
+                         FROM conversations
+                         ORDER BY updated_at DESC
+                         LIMIT {}", lim)
+            )?
+        } else {
+            conn.prepare(
+                "SELECT id, title, messages, created_at, updated_at
+                 FROM conversations
+                 ORDER BY updated_at DESC"
+            )?
+        };
+
+        let rows = stmt.query_map([], |row| {
+            let messages_json: String = row.get(2)?;
+            let messages: Vec<Message> = serde_json::from_str(&messages_json)
+                .map_err(|e| rusqlite::Error::ToSqlConversionFailure(Box::new(e)))?;
+
+            Ok(Conversation {
+                id: row.get(0)?,
+                title: row.get(1)?,
+                messages,
+                created_at: row.get(3)?,
+                updated_at: row.get(4)?,
+            })
+        })?;
+
+        let conversations: Result<Vec<_>, _> = rows.collect();
+        conversations.context("Failed to collect conversations")
+    }
+
+    pub async fn delete_conversation(&self, id: &str) -> Result<()> {
+        let conn = self.conn.lock().await;
+
+        let rows_affected = conn.execute(
+            "DELETE FROM conversations WHERE id = ?1",
+            [id],
+        ).context("Failed to delete conversation")?;
+
+        if rows_affected == 0 {
+            anyhow::bail!("Conversation not found: {}", id);
+        }
+
+        // Update count
+        conn.execute(
+            "UPDATE usage_stats
+             SET total_conversations = (SELECT COUNT(*) FROM conversations),
+                 updated_at = datetime('now')
+             WHERE id = 1",
+            [],
+        ).context("Failed to update conversation count")?;
+
+        tracing::debug!("Conversation deleted: {}", id);
+        Ok(())
     }
 }
 

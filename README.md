@@ -70,6 +70,39 @@ Purchase at [Gumroad](https://gumroad.com/l/parallax-pro)
 
 See [SECURITY.md](docs/legal/SECURITY_DISCLOSURE.md) for vulnerability reporting.
 
+## Data Storage & Privacy
+
+Parallax operates 100% **offline-first** with local data storage:
+
+### What's Stored Locally
+- **Encrypted Vault** (`vault.db`): Saved dorks, AI conversation history, and usage statistics
+  - Location: Platform-specific app data directory
+  - Encryption: AES-256 with OS keyring integration
+  - SQLite database for reliable persistence
+- **License Information**: Stored securely in OS credential manager
+- **API Keys**: Google Gemini key stored in OS-native keyring (never in vault)
+
+### Usage Tracking (Free Tier Only)
+- AI generation count: Resets daily at midnight (local time)
+- Dork storage count: Enforced at 50 dorks maximum
+- Conversation history: Limited to 10 conversations
+- **Pro tier**: All limits removed, tracking disabled
+
+### What We DON'T Collect
+- ❌ Search queries or dork content
+- ❌ API responses or AI conversations
+- ❌ Personal information or analytics
+- ❌ Network telemetry or usage data
+
+All data stays on your machine. We have **zero access** to your vault or searches.
+
+### Data Locations
+```
+Windows: C:\Users\<username>\AppData\Roaming\com.parallax.app\vault.db
+macOS:   ~/Library/Application Support/com.parallax.app/vault.db
+Linux:   ~/.local/share/com.parallax.app/vault.db
+```
+
 ## License
 
 See [EULA](docs/legal/EULA.md) for end-user license agreement.

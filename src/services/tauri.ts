@@ -38,6 +38,31 @@ export interface LicenseActivationResult {
   expires_at?: string;
 }
 
+export interface UsageStats {
+  ai_generations_today: number;
+  last_reset_date: string;
+  total_dorks: number;
+  total_conversations: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface Message {
+  id: string;
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: string;
+  dork?: string;
+}
+
+export interface Conversation {
+  id: string;
+  title: string;
+  messages: Message[];
+  created_at: string;
+  updated_at: string;
+}
+
 /**
  * Get current application configuration and status
  */
@@ -159,4 +184,93 @@ export async function executeTauriCommand<T>(
       `${errorMessage}: ${error instanceof Error ? error.message : String(error)}`
     );
   }
+}
+
+// ============================================================================
+// USAGE TRACKING
+// ============================================================================
+
+/**
+ * Get current usage statistics for free tier enforcement
+ */
+export async function getUsageStats(): Promise<UsageStats> {
+  return await invoke<UsageStats>('get_usage_stats');
+}
+
+/**
+ * Increment AI generation counter and return new count
+ */
+export async function incrementAIUsage(): Promise<number> {
+  return await invoke<number>('increment_ai_usage');
+}
+
+/**
+ * Check if user can generate AI dork (respects tier limits)
+ */
+export async function canGenerateAI(): Promise<boolean> {
+  return await invoke<boolean>('can_generate_ai');
+}
+
+/**
+ * Check if user can save dork (respects tier limits)
+ */
+export async function canSaveDork(): Promise<boolean> {
+  return await invoke<boolean>('can_save_dork');
+}
+
+/**
+ * Get remaining AI generations for today
+ */
+export async function getRemainingAIGenerations(): Promise<number> {
+  return await invoke<number>('get_remaining_ai_generations');
+}
+
+// ============================================================================
+// CONVERSATION PERSISTENCE
+// ============================================================================
+
+/**
+ * Save conversation to encrypted vault
+ */
+export async function saveConversation(conversation: Conversation): Promise<void> {
+  await invoke('save_conversation', { conversation });
+}
+
+/**
+ * Get conversation by ID from vault
+ */
+export async function getConversation(id: string): Promise<Conversation> {
+  return await invoke<Conversation>('get_conversation', { id });
+}
+
+/**
+ * List all conversations (optionally limited)
+ */
+export async function listConversations(limit?: number): Promise<Conversation[]> {
+  return await invoke<Conversation[]>('list_conversations', { limit });
+}
+
+/**
+ * Delete conversation from vault
+ */
+export async function deleteConversation(id: string): Promise<void> {
+  await invoke('delete_conversation', { id });
+}
+
+// ============================================================================
+// ENHANCED LICENSE FUNCTIONS
+// ============================================================================
+
+/**
+ * Get current license tier (free, professional, team, enterprise)
+ */
+export async function getLicenseTier(): Promise<string> {
+  return await invoke<string>('get_license_tier');
+}
+
+/**
+ * Check if license includes specific feature
+ */
+export async function hasFeature(feature: string): Promise<boolean> {
+  return await invoke<boolean>('has_feature', { feature });
 }
