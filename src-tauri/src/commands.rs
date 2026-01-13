@@ -18,6 +18,8 @@ pub struct ExportOptions {
     pub format: String, // "pdf", "csv", "json"
     pub data: serde_json::Value,
     pub filename: String,
+    #[serde(default)]
+    pub metadata: serde_json::Value,
 }
 
 // Get application configuration and status
