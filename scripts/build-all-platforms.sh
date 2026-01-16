@@ -1,12 +1,13 @@
 #!/bin/bash
+
 set -e
 
-echo "================================================"
-echo "Parallax Platform Build Script"
-echo "================================================"
+echo "================================"
+echo "Parallax Multi-Platform Build"
+echo "================================"
 echo ""
 
-# Colors for output
+# Colors
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -14,75 +15,102 @@ NC='\033[0m' # No Color
 
 # Check prerequisites
 echo "Checking prerequisites..."
-command -v npm >/dev/null 2>&1 || { echo -e "${RED}Error: npm is required but not installed.${NC}" >&2; exit 1; }
-command -v cargo >/dev/null 2>&1 || { echo -e "${RED}Error: cargo is required but not installed.${NC}" >&2; exit 1; }
-echo -e "${GREEN}✓ Prerequisites check passed${NC}"
-echo ""
 
-# Get version from package.json
-VERSION=$(node -p "require('./package.json').version" 2>/dev/null || echo "unknown")
-echo "Building version: v$VERSION"
-echo ""
+if ! command -v node &> /dev/null; then
+    echo -e "${RED}Error: Node.js is not installed${NC}"
+    exit 1
+fi
 
-# Clean previous builds
-echo "Cleaning previous builds..."
-rm -rf dist/ src-tauri/target/release/bundle/ 2>/dev/null || true
-echo -e "${GREEN}✓ Cleaned${NC}"
+if ! command -v cargo &> /dev/null; then
+    echo -e "${RED}Error: Rust/Cargo is not installed${NC}"
+    exit 1
+fi
+
+NODE_VERSION=$(node --version)
+CARGO_VERSION=$(cargo --version)
+
+echo -e "${GREEN}✓${NC} Node.js: $NODE_VERSION"
+echo -e "${GREEN}✓${NC} Cargo: $CARGO_VERSION"
 echo ""
 
 # Install dependencies
 echo "Installing dependencies..."
 npm install
-echo -e "${GREEN}✓ Dependencies installed${NC}"
+echo -e "${GREEN}✓${NC} Dependencies installed"
 echo ""
 
-# Run linter (if configured)
-if grep -q "\"lint\"" package.json; then
-    echo "Running linter..."
-    npm run lint || echo -e "${YELLOW}⚠ Linter warnings (continuing anyway)${NC}"
-    echo ""
-fi
-
-# Build frontend
-echo "Building React frontend..."
-npm run build
-echo -e "${GREEN}✓ Frontend built${NC}"
-echo ""
-
-# Build Tauri app for current platform
-echo "Building Tauri application..."
-npm run tauri build
-echo -e "${GREEN}✓ Tauri build complete${NC}"
-echo ""
-
-# Find and list generated installers
-echo "================================================"
-echo "Build Complete!"
-echo "================================================"
-echo ""
-echo "Generated installers:"
-echo ""
-
-if [ -d "src-tauri/target/release/bundle" ]; then
-    find src-tauri/target/release/bundle -type f \( \
-        -name "*.exe" -o \
-        -name "*.msi" -o \
-        -name "*.dmg" -o \
-        -name "*.app" -o \
-        -name "*.AppImage" -o \
-        -name "*.deb" -o \
-        -name "*.rpm" \
-    \) -exec ls -lh {} \; | awk '{print "  " $9 " (" $5 ")"}'
+# Generate license keys (dev mode)
+if [ -z "$PARALLAX_LICENSE_PUBLIC_KEY" ]; then
+    echo -e "${YELLOW}⚠${NC} No license key found, generating development keys..."
+    cd license-server
+    if [ -f "scripts/generateKeys.js" ]; then
+        node scripts/generateKeys.js > ../keys.txt 2>&1
+        export PARALLAX_LICENSE_PUBLIC_KEY=$(grep -A1 "PUBLIC KEY" ../keys.txt | tail -1)
+        echo -e "${GREEN}✓${NC} Development license keys generated"
+        cd ..
+    else
+        echo -e "${YELLOW}⚠${NC} License key generator not found, skipping"
+        cd ..
+    fi
 else
-    echo -e "${YELLOW}  No installers found in expected location${NC}"
+    echo -e "${GREEN}✓${NC} Using provided license key"
 fi
+echo ""
 
-echo ""
-echo "Next steps:"
-echo "  1. Test the installer on a fresh machine"
-echo "  2. Upload to GitHub Releases (if ready)"
-echo "  3. Update download links on website"
-echo "  4. Announce on social media"
-echo ""
-echo "Build script completed successfully!"
-echo ""
+# Build
+echo "Building application..."
+npm run tauri:build
+
+if [ $? -eq 0 ]; then
+    echo ""
+    echo -e "${GREEN}✓${NC} Build successful!"
+    echo ""
+    
+    # Generate checksums
+    echo "Generating checksums..."
+    cd src-tauri/target/release/bundle
+    
+    if [ -d "msi" ]; then
+        sha256sum msi/*.msi > msi/SHA256SUMS 2>/dev/null || true
+        echo -e "${GREEN}✓${NC} Windows MSI checksums"
+    fi
+    
+    if [ -d "nsis" ]; then
+        sha256sum nsis/*.exe > nsis/SHA256SUMS 2>/dev/null || true
+        echo -e "${GREEN}✓${NC} Windows NSIS checksums"
+    fi
+    
+    if [ -d "dmg" ]; then
+        shasum -a 256 dmg/*.dmg > dmg/SHA256SUMS 2>/dev/null || true
+        echo -e "${GREEN}✓${NC} macOS DMG checksums"
+    fi
+    
+    if [ -d "appimage" ]; then
+        sha256sum appimage/*.AppImage > appimage/SHA256SUMS 2>/dev/null || true
+        echo -e "${GREEN}✓${NC} Linux AppImage checksums"
+    fi
+    
+    if [ -d "deb" ]; then
+        sha256sum deb/*.deb > deb/SHA256SUMS 2>/dev/null || true
+        echo -e "${GREEN}✓${NC} Linux DEB checksums"
+    fi
+    
+    if [ -d "rpm" ]; then
+        sha256sum rpm/*.rpm > rpm/SHA256SUMS 2>/dev/null || true
+        echo -e "${GREEN}✓${NC} Linux RPM checksums"
+    fi
+    
+    cd ../../../../
+    
+    echo ""
+    echo -e "${GREEN}================================${NC}"
+    echo -e "${GREEN}Build Complete!${NC}"
+    echo -e "${GREEN}================================${NC}"
+    echo ""
+    echo "Installers available in: src-tauri/target/release/bundle/"
+    echo ""
+else
+    echo ""
+    echo -e "${RED}✗ Build failed${NC}"
+    exit 1
+fi
