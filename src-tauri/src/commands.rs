@@ -564,3 +564,81 @@ fn truncate_text(text: &str, max_len: usize) -> String {
         text.to_string()
     }
 }
+
+// Audit Logging Commands
+use crate::audit::{AuditEventType, AuditLogger, Severity};
+use chrono::DateTime;
+
+#[tauri::command]
+pub async fn get_audit_log(
+    limit: Option<usize>,
+    event_type: Option<String>,
+    start_date: Option<String>,
+    end_date: Option<String>,
+) -> Result<Vec<serde_json::Value>, String> {
+    let data_dir = dirs::data_dir()
+        .ok_or("Failed to get data directory")?
+        .join("com.parallax.app");
+
+    let logger = AuditLogger::new(data_dir)
+        .map_err(|e| format!("Failed to create audit logger: {}", e))?;
+
+    // Parse event type
+    let parsed_event_type = event_type.and_then(|et| match et.as_str() {
+        "LicenseActivated" => Some(AuditEventType::LicenseActivated),
+        "LicenseDeactivated" => Some(AuditEventType::LicenseDeactivated),
+        "DorkCreated" => Some(AuditEventType::DorkCreated),
+        "DorkDeleted" => Some(AuditEventType::DorkDeleted),
+        "ExportPerformed" => Some(AuditEventType::ExportPerformed),
+        _ => None,
+    });
+
+    // Parse dates
+    let parsed_start = start_date.and_then(|s| DateTime::parse_from_rfc3339(&s).ok().map(|d| d.with_timezone(&chrono::Utc)));
+    let parsed_end = end_date.and_then(|s| DateTime::parse_from_rfc3339(&s).ok().map(|d| d.with_timezone(&chrono::Utc)));
+
+    let events = logger
+        .get_events(limit, parsed_event_type, parsed_start, parsed_end)
+        .map_err(|e| format!("Failed to get events: {}", e))?;
+
+    // Convert to JSON values
+    let json_events: Vec<serde_json::Value> = events
+        .into_iter()
+        .map(|e| serde_json::to_value(e).unwrap_or(serde_json::Value::Null))
+        .collect();
+
+    Ok(json_events)
+}
+
+#[tauri::command]
+pub async fn export_audit_log(
+    format: String,
+    output_path: String,
+) -> Result<String, String> {
+    let data_dir = dirs::data_dir()
+        .ok_or("Failed to get data directory")?
+        .join("com.parallax.app");
+
+    let logger = AuditLogger::new(data_dir)
+        .map_err(|e| format!("Failed to create audit logger: {}", e))?;
+
+    logger
+        .export_logs(std::path::PathBuf::from(&output_path), &format)
+        .map_err(|e| format!("Failed to export logs: {}", e))?;
+
+    Ok(output_path)
+}
+
+#[tauri::command]
+pub async fn verify_audit_integrity() -> Result<bool, String> {
+    let data_dir = dirs::data_dir()
+        .ok_or("Failed to get data directory")?
+        .join("com.parallax.app");
+
+    let logger = AuditLogger::new(data_dir)
+        .map_err(|e| format!("Failed to create audit logger: {}", e))?;
+
+    logger
+        .verify_integrity()
+        .map_err(|e| format!("Failed to verify integrity: {}", e))
+}

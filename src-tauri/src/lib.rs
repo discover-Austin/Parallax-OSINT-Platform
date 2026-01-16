@@ -3,6 +3,7 @@ mod commands;
 mod security;
 mod licensing;
 mod vault;
+mod audit;
 
 use std::sync::Arc;
 use tauri::Manager;
