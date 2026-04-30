@@ -1,6 +1,6 @@
 # Contributing to Parallax Intelligence Platform
 
-Thank you for your interest in contributing to Parallax Intelligence Platform! This document provides guidelines and instructions for contributing to the project.
+This document covers contribution guidelines and development workflow for Parallax Intelligence Platform.
 
 ## Table of Contents
 
@@ -428,11 +428,7 @@ By contributing to Parallax Intelligence Platform, you agree that your contribut
 
 ## Questions?
 
-If you have questions about contributing, please:
-
 1. Check existing documentation
 2. Search closed issues
 3. Ask in GitHub Discussions
 4. Reach out on Discord
-
-Thank you for contributing to Parallax Intelligence Platform!

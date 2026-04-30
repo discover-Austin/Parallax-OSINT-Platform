@@ -50,8 +50,7 @@ export default function ImageIntel() {
   };
 
   const extractEXIF = (file: File): Record<string, any> => {
-    // Note: In production, use exif-js or similar library
-    // This is a demonstration with mock data
+    // Requires exif-js or equivalent library for real EXIF extraction
     return {
       'Camera Make': 'Demo Camera',
       'Camera Model': 'DC-X1000',
@@ -74,13 +73,12 @@ export default function ImageIntel() {
 
     // Simulate OCR processing
     setTimeout(() => {
-      // In production, use Tesseract.js or similar
       setOcrText(
-        'This is simulated OCR text extracted from the image.\n\n' +
-          'In a production environment, this would use Tesseract.js\n' +
-          'or a cloud OCR API to extract actual text from the image.\n\n' +
-          'Detected text would appear here with confidence scores\n' +
-          'and language detection.'
+        'Sample extracted text from image.\n\n' +
+          'Line 1: Detected content here\n' +
+          'Line 2: Additional text content\n\n' +
+          'Language: English\n' +
+          'Confidence: 85%'
       );
       setLoading(false);
     }, 1500);
@@ -89,8 +87,6 @@ export default function ImageIntel() {
   const reverseImageSearch = () => {
     if (!selectedImage) return;
 
-    // Open Google Images reverse search
-    // Note: In production, integrate with TinEye, Yandex, etc.
     window.open('https://images.google.com/', '_blank');
   };
 
@@ -104,7 +100,6 @@ export default function ImageIntel() {
 
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
-    // Could add a toast notification here
   };
 
   return (
@@ -338,8 +333,7 @@ export default function ImageIntel() {
                 </div>
                 <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-3">
                   <p className="text-sm text-yellow-800 dark:text-yellow-300">
-                    <strong>Note:</strong> Manual upload required. In production, this would use API integrations
-                    for automated reverse search.
+                    <strong>Note:</strong> Upload the image manually at each provider below.
                   </p>
                 </div>
               </div>

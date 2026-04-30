@@ -84,6 +84,4 @@ To report violations of this AUP:
 
 We reserve the right to modify this AUP at any time. Continued use after changes constitutes acceptance of the modified AUP.
 
----
-
-**Remember:** With great power comes great responsibility. Use Parallax ethically and legally.
+Use Parallax ethically and in compliance with all applicable laws.
