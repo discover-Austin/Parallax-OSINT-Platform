@@ -126,6 +126,4 @@ parallax-platform/
 └── .github/          # CI/CD
 ```
 
----
-
 For support: [GitHub Issues](https://github.com/yourusername/Parallax-OSINT-Platform/issues)

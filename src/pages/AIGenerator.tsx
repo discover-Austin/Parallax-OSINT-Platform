@@ -194,7 +194,6 @@ export default function AIGenerator() {
   const handleCopyDork = async (dork: string) => {
     try {
       await navigator.clipboard.writeText(dork);
-      // Could show a toast notification here
     } catch (error) {
       console.error('Failed to copy:', error);
     }
@@ -210,7 +209,6 @@ export default function AIGenerator() {
         tags: ['AI Generated'],
         created_at: new Date().toISOString(),
       });
-      // Could show a success notification here
     } catch (error) {
       console.error('Failed to save dork:', error);
     }
@@ -269,7 +267,7 @@ export default function AIGenerator() {
                 Generate Google Dorks with AI
               </h2>
               <p className="text-gray-600 dark:text-gray-400">
-                Describe what you're looking for in plain English, and I'll create the perfect Google dork
+                Describe what you're looking for in plain English to generate a matching Google dork.
               </p>
             </div>
 

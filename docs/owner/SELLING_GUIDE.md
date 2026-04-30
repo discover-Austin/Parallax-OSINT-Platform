@@ -173,8 +173,4 @@ Generate keys manually until 50 sales, then automate with Zapier/Make.com.
 - Technical issues: GitHub Issues
 - Sales questions: [Your email]
 
----
-
-**Remember**: Done is better than perfect. Ship it, learn, iterate.
-
-First sale > Perfect product. Launch now! 🚀
+Ship early, iterate on feedback.

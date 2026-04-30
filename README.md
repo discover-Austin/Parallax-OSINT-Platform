@@ -113,6 +113,4 @@ See [EULA](docs/legal/EULA.md) for end-user license agreement.
 - Issues: https://github.com/yourusername/Parallax-OSINT-Platform/issues
 - Email: support@parallax.app
 
----
-
 Built with [Tauri](https://tauri.app) + [React](https://react.dev) + [Rust](https://rust-lang.org)
